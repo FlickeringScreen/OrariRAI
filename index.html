@@ -212,6 +212,26 @@
             color: #4a9eba;
         }
 
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .button-group button {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        button.google {
+            background: linear-gradient(135deg, #4285f4 0%, #3367d6 100%);
+            color: white;
+        }
+
+        button.google:hover {
+            box-shadow: 0 10px 20px rgba(66, 133, 244, 0.4);
+        }
+
         .debug {
             margin-top: 20px;
             padding: 15px;
@@ -296,7 +316,10 @@
         <div class="shifts-preview" id="shiftsPreview">
             <h3>✅ Turni Trovati:</h3>
             <div id="shiftsList"></div>
-            <button type="button" id="downloadBtn" class="secondary">⬇️ Scarica Calendario ICS</button>
+            <div class="button-group">
+                <button type="button" id="downloadBtn" class="secondary">⬇️ Scarica ICS</button>
+                <button type="button" id="googleCalendarBtn" class="google">📅 Aggiungi a Google Calendar</button>
+            </div>
         </div>
 
         <div class="footer">
@@ -657,6 +680,60 @@
             return `${year}${month}${day}T${hours}${minutes}${seconds}`;
         }
 
+        function addToGoogleCalendar() {
+            log('');
+            log('📅 GOOGLE CALENDAR BUTTON CLICKED');
+            
+            if (!extractedSchedule) {
+                showStatus('❌ Nessun turno da aggiungere!', 'error');
+                return;
+            }
+
+            try {
+                log('📅 Generating ICS for Google Calendar...');
+                const icsContent = generateICS(extractedSchedule, currentFirstName, currentLastName);
+                
+                // Create a blob and convert to base64 for Google Calendar
+                const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+                
+                // Create a temporary download link and trigger it
+                const url = URL.createObjectURL(blob);
+                const fileName = `RAI_Turni_${currentFirstName}_${currentLastName}.ics`;
+                
+                // On mobile, we need to download the ICS and let the user open it
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = fileName;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Show instructions based on device
+                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                
+                if (isMobile) {
+                    showStatus(`✓ File scaricato! Aprilo e seleziona "Google Calendar" per importare tutti i ${extractedSchedule.length} turni.`, 'success');
+                    
+                    // Try to open Google Calendar app/website
+                    setTimeout(() => {
+                        // This will prompt to open in Google Calendar app on mobile
+                        window.location.href = 'https://calendar.google.com/calendar/r';
+                    }, 1000);
+                } else {
+                    showStatus(`✓ File scaricato! Vai su Google Calendar > Impostazioni > Importa ed esporta per caricare il file.`, 'success');
+                }
+                
+                URL.revokeObjectURL(url);
+                log('✅ ICS file ready for Google Calendar import');
+                
+            } catch (error) {
+                log('💥 ERROR: ' + error.message);
+                console.error(error);
+                showStatus('❌ Errore: ' + error.message, 'error');
+            }
+        }
+
         function downloadICS(content, firstName, lastName) {
             const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
             const url = URL.createObjectURL(blob);
@@ -667,6 +744,58 @@
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
+        }
+
+        function generateGoogleCalendarURL(schedule, firstName, lastName) {
+            if (schedule.length === 0) return null;
+            
+            const urls = [];
+            
+            schedule.forEach(shift => {
+                const times = SHIFT_TIMES[shift.shiftCode];
+                if (!times || shift.shiftCode === 'XXX') return;
+
+                const [startHour, startMin] = times[0].split(':');
+                const [endHour, endMin] = times[1].split(':');
+
+                const startDate = new Date(shift.date);
+                startDate.setHours(parseInt(startHour), parseInt(startMin), 0);
+
+                let endDate = new Date(shift.date);
+                endDate.setHours(parseInt(endHour), parseInt(endMin), 0);
+
+                if (parseInt(endHour) < parseInt(startHour)) {
+                    endDate.setDate(endDate.getDate() + 1);
+                }
+
+                const locationName = getLocationName(shift.location);
+                const eventTitle = `${shift.shiftCode} - ${locationName}`;
+                
+                const formatGoogleDate = (date) => {
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const hours = String(date.getHours()).padStart(2, '0');
+                    const minutes = String(date.getMinutes()).padStart(2, '0');
+                    const seconds = String(date.getSeconds()).padStart(2, '0');
+                    return `${year}${month}${day}T${hours}${minutes}${seconds}`;
+                };
+
+                const startStr = formatGoogleDate(startDate);
+                const endStr = formatGoogleDate(endDate);
+                
+                const params = new URLSearchParams({
+                    action: 'TEMPLATE',
+                    text: eventTitle,
+                    dates: `${startStr}/${endStr}`,
+                    details: `Turno ${shift.shiftCode}\nOrario: ${times[0]} - ${times[1]}`,
+                    location: locationName
+                });
+                
+                urls.push(`https://calendar.google.com/calendar/render?${params.toString()}`);
+            });
+            
+            return urls;
         }
 
         // Extract button click handler
@@ -762,6 +891,9 @@
                 showStatus('❌ Errore nel download: ' + error.message, 'error');
             }
         };
+
+        // Google Calendar button click handler
+        document.getElementById('googleCalendarBtn').onclick = addToGoogleCalendar;
 
         log('✓ Page loaded successfully');
         log('✓ Ready to process PDF files');
