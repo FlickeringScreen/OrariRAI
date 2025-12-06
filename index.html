@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAI Shift Calendar Generator</title>
+    <title>Generatore Calendario Turni RAI</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>
         * {
@@ -14,28 +14,29 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             min-height: 100vh;
             padding: 20px;
         }
 
         .container {
-            background: white;
+            background: #0f3460;
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
             padding: 40px;
             max-width: 800px;
             margin: 0 auto;
+            border: 1px solid #1a4d7a;
         }
 
         h1 {
-            color: #333;
+            color: #5bc0de;
             margin-bottom: 10px;
             font-size: 28px;
         }
 
         .subtitle {
-            color: #666;
+            color: #c8d3dc;
             margin-bottom: 30px;
             font-size: 14px;
         }
@@ -47,7 +48,7 @@
         label {
             display: block;
             margin-bottom: 8px;
-            color: #555;
+            color: #c8d3dc;
             font-weight: 600;
             font-size: 14px;
         }
@@ -56,23 +57,44 @@
         input[type="file"] {
             width: 100%;
             padding: 12px;
-            border: 2px solid #e0e0e0;
+            border: 2px solid #1a4d7a;
             border-radius: 8px;
             font-size: 16px;
             transition: border-color 0.3s;
+            background: #16213e;
+            color: #f8f9fa;
         }
 
         input[type="text"]:focus,
         input[type="file"]:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #5bc0de;
+        }
+
+        input[type="file"] {
+            cursor: pointer;
+            color: #c8d3dc;
+        }
+
+        input[type="file"]::file-selector-button {
+            background: #1a4d7a;
+            color: #f8f9fa;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            background: #5bc0de;
         }
 
         button {
             width: 100%;
             padding: 15px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: linear-gradient(135deg, #5bc0de 0%, #4a9bb5 100%);
+            color: #0f3460;
             border: none;
             border-radius: 8px;
             font-size: 16px;
@@ -84,7 +106,7 @@
 
         button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 10px 20px rgba(91, 192, 222, 0.4);
         }
 
         button:active {
@@ -92,13 +114,17 @@
         }
 
         button:disabled {
-            background: #ccc;
+            background: #495057;
             cursor: not-allowed;
             transform: none;
         }
 
         button.secondary {
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+
+        button.secondary:hover {
+            box-shadow: 0 10px 20px rgba(40, 167, 69, 0.4);
         }
 
         .status {
@@ -110,23 +136,23 @@
         }
 
         .status.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
+            background: #1e4620;
+            color: #5cb85c;
+            border: 1px solid #4cae4c;
             display: block;
         }
 
         .status.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+            background: #4a1c1c;
+            color: #f8d7da;
+            border: 1px solid #c23a52;
             display: block;
         }
 
         .status.info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
+            background: #1a3a52;
+            color: #5bc0de;
+            border: 1px solid #46b8da;
             display: block;
         }
 
@@ -141,8 +167,8 @@
         }
 
         .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+            border: 4px solid #16213e;
+            border-top: 4px solid #5bc0de;
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -158,9 +184,9 @@
         .shifts-preview {
             margin-top: 20px;
             padding: 20px;
-            background: #f8f9fa;
+            background: #16213e;
             border-radius: 8px;
-            border: 2px solid #667eea;
+            border: 2px solid #5bc0de;
             display: none;
         }
 
@@ -169,44 +195,63 @@
         }
 
         .shifts-preview h3 {
-            color: #333;
+            color: #5bc0de;
             margin-bottom: 15px;
         }
 
         .shift-item {
             padding: 10px;
             margin: 8px 0;
-            background: white;
+            background: #0f3460;
             border-radius: 5px;
-            border-left: 4px solid #667eea;
+            border-left: 4px solid #5bc0de;
+            color: #f8f9fa;
         }
 
         .shift-item strong {
-            color: #667eea;
+            color: #5bc0de;
         }
 
         .debug {
             margin-top: 20px;
             padding: 15px;
-            background: #f8f9fa;
+            background: #16213e;
             border-radius: 8px;
             font-size: 12px;
             max-height: 300px;
             overflow-y: auto;
-            border: 1px solid #dee2e6;
+            border: 1px solid #1a4d7a;
             font-family: 'Courier New', monospace;
             white-space: pre-wrap;
             word-wrap: break-word;
+            color: #adb5bd;
         }
 
         .hidden {
             display: none;
         }
+
+        h3 {
+            color: #f8f9fa;
+        }
+
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #6c757d;
+            font-size: 11px;
+            padding: 20px 0 10px 0;
+            border-top: 1px solid #1a4d7a;
+        }
+
+        .footer p {
+            margin: 5px 0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>📅 RAI Shift Calendar Generator</h1>
+        <h1>📅 Generatore Calendario Turni RAI</h1>
         <p class="subtitle">Genera il tuo calendario turni in formato ICS</p>
 
         <div id="uploadSection">
@@ -217,12 +262,12 @@
 
             <div class="form-group">
                 <label for="firstName">Nome:</label>
-                <input type="text" id="firstName" placeholder="es. Marco" required>
+                <input type="text" id="firstName" placeholder="Mario" required>
             </div>
 
             <div class="form-group">
                 <label for="lastName">Cognome:</label>
-                <input type="text" id="lastName" placeholder="es. Natalizi" required>
+                <input type="text" id="lastName" placeholder="Rossi" required>
             </div>
 
             <button type="button" id="extractBtn">Estrai Turni dal PDF</button>
@@ -241,9 +286,9 @@
             <button type="button" id="downloadBtn" class="secondary">⬇️ Scarica Calendario ICS</button>
         </div>
 
-        <div style="margin-top: 20px;">
-            <h3 style="color: #333; font-size: 16px; margin-bottom: 10px;">🔍 Debug Log:</h3>
-            <div class="debug" id="debug">Waiting for action...</div>
+        <div class="footer">
+            <p>Creato da Antonio Amato</p>
+            <p>Versione 1.0.19_Beta</p>
         </div>
     </div>
 
@@ -300,10 +345,6 @@
         };
 
         function log(message) {
-            const debug = document.getElementById('debug');
-            const timestamp = new Date().toLocaleTimeString();
-            debug.textContent += `[${timestamp}] ${message}\n`;
-            debug.scrollTop = debug.scrollHeight;
             console.log(message);
         }
 
@@ -710,6 +751,28 @@
 
         log('✓ Page loaded successfully');
         log('✓ Ready to process PDF files');
+
+        // Load saved names from localStorage
+        const savedFirstName = localStorage.getItem('raiFirstName');
+        const savedLastName = localStorage.getItem('raiLastName');
+        
+        if (savedFirstName) {
+            document.getElementById('firstName').value = savedFirstName;
+            log(`✓ Loaded saved first name: ${savedFirstName}`);
+        }
+        if (savedLastName) {
+            document.getElementById('lastName').value = savedLastName;
+            log(`✓ Loaded saved last name: ${savedLastName}`);
+        }
+
+        // Save names when they change
+        document.getElementById('firstName').addEventListener('change', function(e) {
+            localStorage.setItem('raiFirstName', e.target.value.trim());
+        });
+
+        document.getElementById('lastName').addEventListener('change', function(e) {
+            localStorage.setItem('raiLastName', e.target.value.trim());
+        });
     </script>
 </body>
 </html>
