@@ -212,26 +212,6 @@
             color: #4a9eba;
         }
 
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .button-group button {
-            flex: 1;
-            margin-bottom: 0;
-        }
-
-        button.google {
-            background: linear-gradient(135deg, #4285f4 0%, #3367d6 100%);
-            color: white;
-        }
-
-        button.google:hover {
-            box-shadow: 0 10px 20px rgba(66, 133, 244, 0.4);
-        }
-
         .debug {
             margin-top: 20px;
             padding: 15px;
@@ -316,10 +296,7 @@
         <div class="shifts-preview" id="shiftsPreview">
             <h3>✅ Turni Trovati:</h3>
             <div id="shiftsList"></div>
-            <div class="button-group">
-                <button type="button" id="downloadBtn" class="secondary">⬇️ Scarica ICS</button>
-                <button type="button" id="googleCalendarBtn" class="google">📅 Aggiungi a Google Calendar</button>
-            </div>
+            <button type="button" id="downloadBtn" class="secondary">⬇️ Scarica Calendario ICS</button>
         </div>
 
         <div class="footer">
@@ -891,9 +868,6 @@
                 showStatus('❌ Errore nel download: ' + error.message, 'error');
             }
         };
-
-        // Google Calendar button click handler
-        document.getElementById('googleCalendarBtn').onclick = addToGoogleCalendar;
 
         log('✓ Page loaded successfully');
         log('✓ Ready to process PDF files');
