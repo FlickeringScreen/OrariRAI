@@ -127,6 +127,19 @@
             box-shadow: 0 10px 20px rgba(40, 167, 69, 0.4);
         }
 
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        @media (max-width: 600px) {
+            .button-group {
+                grid-template-columns: 1fr;
+            }
+        }
+
         .status {
             margin-top: 20px;
             padding: 15px;
@@ -212,27 +225,30 @@
             color: #4a9eba;
         }
 
-        .debug {
-            margin-top: 20px;
-            padding: 15px;
-            background: #16213e;
-            border-radius: 8px;
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            margin-top: 8px;
+            margin-right: 5px;
+            border-radius: 4px;
             font-size: 12px;
-            max-height: 300px;
-            overflow-y: auto;
-            border: 1px solid #1a4d7a;
-            font-family: 'Courier New', monospace;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            color: #adb5bd;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        .hidden {
-            display: none;
+        .status-badge.mfs,
+        .status-badge.mns,
+        .status-badge.fs {
+            background: #4a1c1c;
+            color: #ff6b6b;
+            border: 1px solid #ff6b6b;
         }
 
-        h3 {
-            color: #f8f9fa;
+        .status-badge.riposo {
+            background: #1e4620;
+            color: #5cb85c;
+            border: 1px solid #4cae4c;
         }
 
         .footer {
@@ -242,23 +258,14 @@
             font-size: 11px;
             padding: 20px 0 10px 0;
             border-top: 1px solid #1a4d7a;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
         }
 
         .footer p {
             margin: 5px 0;
         }
 
-        .disclaimer {
-            margin-top: 15px;
-            font-size: 9px;
-            color: #495057;
-            line-height: 1.4;
-            max-width: 600px;
-            text-align: center;
-            padding: 0 20px;
+        h3 {
+            color: #f8f9fa;
         }
     </style>
 </head>
@@ -296,21 +303,21 @@
         <div class="shifts-preview" id="shiftsPreview">
             <h3>✅ Turni Trovati:</h3>
             <div id="shiftsList"></div>
-            <button type="button" id="downloadBtn" class="secondary">⬇️ Scarica Calendario ICS</button>
+            
+            <div class="button-group">
+                <button type="button" id="downloadBtn" class="secondary">⬇️ Scarica File ICS</button>
+            </div>
         </div>
 
         <div class="footer">
             <p>Creato da Antonio Amato</p>
-            <p>Versione 1.37_Beta</p>
-            <p class="disclaimer">L'autore non è responsabile per eventuali errori nei dati o nella conversione dei turni. Per informazioni corrette e aggiornate, fare sempre riferimento ai canali di comunicazione ufficiali.</p>
+            <p>Versione 1.4 Beta</p>
         </div>
     </div>
 
     <script>
-        // Set PDF.js worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        // Global variables
         let extractedSchedule = null;
         let currentFirstName = '';
         let currentLastName = '';
@@ -334,28 +341,37 @@
             'RC': ['05:30', '14:05'], 'RG': ['12:00', '20:35'], 'RU': ['05:00', '13:35'],
             'SR': ['10:45', '19:20'], 'TC': ['06:30', '15:05'], 'TD': ['06:30', '14:05'],
             'UD': ['10:25', '18:00'], 'US': ['11:30', '19:05'], 'VI': ['11:30', '20:05'],
-            'XXX': ['00:00', '00:00']
+            '90': ['00:00', '00:00'], '91': ['00:00', '00:00'], '92': ['00:00', '00:00'],
+            '93': ['00:00', '00:00'], '94': ['00:00', '00:00'], '95': ['00:00', '00:00'],
+            '96': ['00:00', '00:00'], '97': ['00:00', '00:00'], '99': ['00:00', '00:00']
         };
 
         const LOCATIONS = {
             'N1': 'Nomentano 1', 'N2': 'Nomentano 2', 'N3': 'Nomentano 3',
             'N4': 'Nomentano 4', 'N5': 'Nomentano 5', 'N6': 'Nomentano 6',
-            'AFP1': 'Foro Italico', 'AFI': 'Foro Italico',
-            '1': 'Teulada 1', '2': 'Teulada 2', '3': 'Teulada 3',
-            '4': 'Teulada 4', '5': 'Teulada 5',
+            'AFP1': 'Foro Italico Sala Prove 1', 'AFI': 'Foro Italico',
+            '1': 'Teulada Studio 1', '2': 'Teulada Studio 2', '3': 'Teulada Studio 3',
+            '4': 'Teulada Studio 4', '5': 'Teulada Studio 5', '6': 'Teulada Studio 6',
+            '7': 'Teulada Studio 7', '8': 'Teulada Studio 8', '9': 'Teulada Studio 9',
+            '10': 'Teulada Studio 10', '11': 'Teulada Studio 11', '12': 'Teulada Studio 12',
             'SR1': 'Saxa Rubra 1', 'SR2': 'Saxa Rubra 2', 'SR3': 'Saxa Rubra 3',
             'SR4': 'Saxa Rubra 4', 'SR5': 'Saxa Rubra 5 - Rai Sport',
-            'RAN': 'Saxa Rubra - RAI NEWS', 'AUM': 'Montecitorio',
+            'RAN': 'Saxa Rubra - RAI NEWS',
+            'S9A': 'Studio 9A', 'S09': 'Studio 09', 'S12': 'Studio 12',
+            'S04': 'Studio 04', 'S07': 'Studio 07', 'S03': 'Studio 03',
+            'TG1': 'TG1', 'TG2': 'TG2', 'TG3': 'TG3',
+            'SE': 'Servizio Esterno',
+            'ES01': 'Esterna 1', 'ES02': 'Esterna 2', 'ES03': 'Esterna 3', 'ES04': 'Esterna 4',
+            'ES05': 'Esterna 5', 'ES06': 'Esterna 6', 'ES07': 'Esterna 7', 'ES08': 'Esterna 8',
+            'ES09': 'Esterna 9', 'ES10': 'Esterna 10',
+            'SPL1': 'Esterna Sopralluogo 1', 'SPL2': 'Esterna Sopralluogo 2',
+            'AUM': 'Aula Montecitorio', 'MC': 'Studiolo Montecitorio',
+            'QUA': 'Quirinale', 'QUB': 'Quirinale Stand Up', 'SEN': 'Senato',
             'DISP': 'Disposizione', 'Disp.': 'Disposizione',
-            'TdV': 'Teatro delle Vittorie', 'SE': 'Servizio Esterno',
-            'MC': 'Media Center', 'QUA': 'Quarantena', 'QUB': 'Quarantena B',
-            'SEN': 'Senato', 'ES06': 'Esterno 06', 'S9A': 'Studio 9A',
-            'S09': 'Studio 09', 'S12': 'Studio 12', 'S03': 'Studio 03',
-            'S04': 'Studio 04', 'S07': 'Studio 07', 'TG1': 'TG1',
-            'TG2': 'TG2', 'TG3': 'TG3', 'OB': 'Outside Broadcast',
-            'OB20': 'Outside Broadcast 20', 'OB30': 'Outside Broadcast 30',
-            'OB41': 'Outside Broadcast 41', 'RT': 'Riposo Tecnico',
-            '645': '645', '475': '475'
+            'TdV': 'Teatro delle Vittorie',
+            'ITA645': 'ITA645', '645': 'ITA645',
+            'ITA475': 'ITA475', '475': 'ITA475',
+            'SW': 'Smart Working'
         };
 
         function log(message) {
@@ -412,17 +428,24 @@
 
         function findEmployeeLine(text, firstName, lastName) {
             const lines = text.split('\n');
-            const searchNames = [
-                `${lastName.toUpperCase()}, ${firstName.toUpperCase()}`,
-                `${lastName.toUpperCase()},${firstName.toUpperCase()}`,
-                lastName.toUpperCase()
+            
+            const normalizedLastName = lastName.toUpperCase().replace(/\s+/g, '');
+            const normalizedFirstName = firstName.toUpperCase().replace(/\s+/g, '');
+            
+            const searchPatterns = [
+                `${normalizedLastName},${normalizedFirstName}`,
+                `${normalizedLastName}, ${normalizedFirstName}`,
+                normalizedLastName
             ];
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
-                for (const searchName of searchNames) {
-                    if (line.includes(searchName)) {
-                        log(`✓ Found employee at line ${i}`);
+                const normalizedLine = line.replace(/\s+/g, '');
+                
+                for (const pattern of searchPatterns) {
+                    const normalizedPattern = pattern.replace(/\s+/g, '');
+                    if (normalizedLine.includes(normalizedPattern)) {
+                        log(`✓ Found employee at line ${i}: ${line.substring(0, 100)}`);
                         return { index: i, line: line, lines: lines };
                     }
                 }
@@ -471,12 +494,9 @@
             const weekDates = extractWeekDates(text);
             const schedule = [];
             
-            // Get the line with the employee name - this line contains ALL the shifts!
             const nameLine = employeeData.lines[employeeData.index];
             log(`Name line: ${nameLine}`);
             
-            // Split the line into tokens to process sequentially
-            // Remove the employee name part first
             const dataPartMatch = nameLine.match(/[A-Z]+,\s*[A-Z]+\s+(.*)/);
             if (!dataPartMatch) {
                 log('❌ Could not extract data part from name line');
@@ -486,77 +506,179 @@
             const dataPart = dataPartMatch[1];
             log(`Data part: ${dataPart}`);
             
-            // Find all shift codes and their positions
-            const shiftPattern = /'([A-Z*+0-9\s]{1,4})'/g;
-            let match;
             const shiftsFound = [];
+            let match;
             
-            while ((match = shiftPattern.exec(dataPart)) !== null) {
-                const shiftCode = match[1].trim(); // Trim spaces inside quotes
+            const quotedPattern = /'([A-Z*+0-9\s]{1,4})'/g;
+            
+            while ((match = quotedPattern.exec(dataPart)) !== null) {
+                const shiftCode = match[1].trim();
                 if (SHIFT_TIMES[shiftCode]) {
                     shiftsFound.push({
                         code: shiftCode,
                         position: match.index,
                         endPosition: match.index + match[0].length
                     });
-                    log(`  Found shift code: '${shiftCode}'`);
+                    log(`  Found quoted shift code: '${shiftCode}'`);
                 }
             }
             
-            log(`✓ Found ${shiftsFound.length} valid shift codes`);
+            const riposoCodes = ['90', '91', '92', '93', '94', '95', '96', '97', '99'];
+            for (const code of riposoCodes) {
+                const riposoPattern = new RegExp(`\\b${code}\\b`, 'g');
+                while ((match = riposoPattern.exec(dataPart)) !== null) {
+                    shiftsFound.push({
+                        code: code,
+                        position: match.index,
+                        endPosition: match.index + code.length
+                    });
+                    log(`  Found riposo code: ${code}`);
+                }
+            }
+            
+            if (shiftsFound.length === 0) {
+                const segments = dataPart.split(/\s{2,}/);
+                let position = 0;
+                
+                for (const segment of segments) {
+                    const trimmed = segment.trim();
+                    if (trimmed.length >= 1 && trimmed.length <= 4 && SHIFT_TIMES[trimmed]) {
+                        shiftsFound.push({
+                            code: trimmed,
+                            position: position,
+                            endPosition: position + segment.length
+                        });
+                        log(`  Found unquoted shift code: ${trimmed}`);
+                    }
+                    position += segment.length + 2;
+                }
+            }
+            
+            const xxxPattern = /\bXXX\b/g;
+            while ((match = xxxPattern.exec(dataPart)) !== null) {
+                const isOverlapping = shiftsFound.some(s => 
+                    match.index >= s.position && match.index < s.endPosition
+                );
+                if (!isOverlapping) {
+                    shiftsFound.push({
+                        code: 'XXX',
+                        position: match.index,
+                        endPosition: match.index + 3
+                    });
+                    log(`  Found XXX placeholder at position ${match.index}`);
+                }
+            }
+            
+            shiftsFound.sort((a, b) => a.position - b.position);
+            
+            log(`✓ Found ${shiftsFound.length} shift codes/placeholders`);
             
             if (shiftsFound.length === 0) {
                 log('❌ No shifts found on name line');
                 return { found: true, schedule: [] };
             }
             
-            // For each shift, extract its location
+            if (shiftsFound.length !== 7) {
+                log(`⚠️ Warning: Expected 7 days but found ${shiftsFound.length}`);
+            }
+            
             shiftsFound.forEach((shift, dayIndex) => {
-                if (dayIndex >= 7) return; // Only 7 days in a week
+                if (dayIndex >= 7) {
+                    log(`⚠️ Skipping extra shift at day ${dayIndex + 1}`);
+                    return;
+                }
                 
-                // Get everything after this shift code until the next shift or end
                 let afterShift;
                 if (dayIndex < shiftsFound.length - 1) {
-                    // Get text between this shift and the next shift
                     afterShift = dataPart.substring(shift.endPosition, shiftsFound[dayIndex + 1].position);
                 } else {
-                    // Last shift - get everything after it
                     afterShift = dataPart.substring(shift.endPosition);
                 }
                 
                 log(`  After shift '${shift.code}': "${afterShift.trim()}"`);
                 
-                // Extract all tokens (words) after the shift
                 const tokens = afterShift.trim().split(/\s+/).filter(t => t.length > 0);
                 
-                let location = 'SE'; // Default
+                let location = 'SE';
+                let hasMFS = false;
+                let hasMNS = false;
+                let hasFS = false;
+                let locationTokens = [];
+                let foundLocation = false;
                 
-                // Look through tokens to find the location
-                // Skip: MFS, MNS, SE>, FS>, RCF>, and numbers like 95, 96
-                for (const token of tokens) {
-                    const cleaned = token.replace(/[>,<]/g, ''); // Remove arrows
-                    
-                    // Skip status codes
-                    if (['MFS', 'MNS', 'SE', 'FS', 'RCF', 'XXX', 'RT'].includes(cleaned)) {
-                        continue;
-                    }
-                    
-                    // Skip day off codes (95, 96)
-                    if (['95', '96'].includes(cleaned)) {
-                        continue;
-                    }
-                    
-                    // This should be the location
-                    location = cleaned;
-                    break;
+                if (shift.code === 'XXX') {
+                    log(`  Day ${dayIndex + 1}: XXX (undefined shift)`);
+                    schedule.push({
+                        date: weekDates[dayIndex],
+                        shiftCode: 'XXX',
+                        location: 'TBD',
+                        hasMFS: false,
+                        hasMNS: false,
+                        hasFS: false
+                    });
+                    return;
                 }
                 
-                log(`  Day ${dayIndex + 1}: ${shift.code} @ ${location}`);
+                for (let i = 0; i < tokens.length; i++) {
+                    const token = tokens[i];
+                    const cleaned = token.replace(/[>,<]/g, '');
+                    
+                    if (cleaned === 'MFS') {
+                        hasMFS = true;
+                        continue;
+                    }
+                    if (cleaned === 'MNS') {
+                        hasMNS = true;
+                        continue;
+                    }
+                    if (cleaned === 'FS') {
+                        hasFS = true;
+                        continue;
+                    }
+                    
+                    if (['SE', 'RCF', 'XXX', 'RT', 'L7G', 'RV', 'XXP', 'MN'].includes(cleaned)) {
+                        continue;
+                    }
+                    
+                    if (['90', '91', '92', '93', '94', '95', '96', '97', '99'].includes(cleaned)) {
+                        if (foundLocation) break;
+                        continue;
+                    }
+                    
+                    if (token.match(/^OB\d$/) && i + 1 < tokens.length && tokens[i + 1].match(/^\d$/)) {
+                        locationTokens.push(token + tokens[i + 1]);
+                        i++;
+                        foundLocation = true;
+                        continue;
+                    }
+                    
+                    if (token.includes('>')) {
+                        locationTokens.push(token);
+                        foundLocation = true;
+                        continue;
+                    }
+                    
+                    if (!foundLocation) {
+                        locationTokens.push(cleaned);
+                        foundLocation = true;
+                    }
+                }
+                
+                if (locationTokens.length > 0) {
+                    location = locationTokens.join('');
+                } else {
+                    location = 'SE';
+                }
+                
+                log(`  Day ${dayIndex + 1}: ${shift.code} @ ${location}${hasMFS ? ' [MFS]' : ''}${hasMNS ? ' [MNS]' : ''}${hasFS ? ' [FS]' : ''}`);
                 
                 schedule.push({
                     date: weekDates[dayIndex],
                     shiftCode: shift.code,
-                    location: location
+                    location: location,
+                    hasMFS: hasMFS,
+                    hasMNS: hasMNS,
+                    hasFS: hasFS
                 });
             });
             
@@ -566,23 +688,46 @@
         }
 
         function getLocationName(locationCode) {
-            let cleanCode = locationCode.replace(/^OB-?/, '').replace(/[>\d]+$/, '');
-            
-            if (LOCATIONS[cleanCode]) return LOCATIONS[cleanCode];
-            if (LOCATIONS[locationCode]) return LOCATIONS[locationCode];
-            
-            for (const [key, value] of Object.entries(LOCATIONS)) {
-                if (locationCode.includes(key) || key.includes(locationCode)) {
-                    return value;
-                }
+            if (locationCode.includes('>')) {
+                const locations = locationCode.split('>').filter(loc => loc.length > 0);
+                const names = locations.map(loc => {
+                    const trimmed = loc.trim();
+                    if (trimmed.startsWith('OB')) {
+                        return 'Outside Broadcast';
+                    }
+                    return LOCATIONS[trimmed] || trimmed;
+                });
+                return names.join(' → ');
             }
             
-            return locationCode;
+            const trimmed = locationCode.trim();
+            
+            if (trimmed.startsWith('OB')) {
+                return 'Outside Broadcast';
+            }
+            
+            return LOCATIONS[trimmed] || trimmed;
         }
 
         function displayShifts(schedule) {
             const shiftsList = document.getElementById('shiftsList');
             shiftsList.innerHTML = '';
+
+            const riposoNames = {
+                '90': 'Festivo',
+                '91': 'Non lavorato su Festivo',
+                '92': 'Riposo sul Festivo',
+                '93': 'CS',
+                '94': 'Riposo sul semilavorato',
+                '95': 'Non lavorato',
+                '96': 'Riposo',
+                '97': 'Part time',
+                '99': 'Non lavorato su semilavorato'
+            };
+
+            let workShifts = 0;
+            let restDays = 0;
+            let undefinedDays = 0;
 
             schedule.forEach((shift, idx) => {
                 const times = SHIFT_TIMES[shift.shiftCode];
@@ -590,15 +735,65 @@
                 
                 const div = document.createElement('div');
                 div.className = 'shift-item';
-                div.innerHTML = `
-                    <strong>${shift.date.toLocaleDateString('it-IT', { weekday: 'long', day: '2-digit', month: '2-digit' })}</strong><br>
-                    Turno: ${shift.shiftCode} (${times[0]} - ${times[1]})<br>
-                    Luogo: ${locationName}
-                `;
+                
+                if (shift.shiftCode === 'XXX') {
+                    undefinedDays++;
+                    div.style.opacity = '0.5';
+                    div.innerHTML = `
+                        <strong>${shift.date.toLocaleDateString('it-IT', { weekday: 'long', day: '2-digit', month: '2-digit' })}</strong><br>
+                        <span style="color: #ffc107;">⚠️ Turno non definito (XXX)</span>
+                    `;
+                    shiftsList.appendChild(div);
+                    return;
+                }
+                
+                const isRiposo = riposoNames[shift.shiftCode];
+                
+                if (isRiposo) {
+                    restDays++;
+                    div.style.opacity = '0.6';
+                }
+                
+                let statusHTML = '';
+                if (shift.hasMFS) {
+                    statusHTML += '<span class="status-badge mfs">Mancato Festivo</span>';
+                }
+                if (shift.hasMNS) {
+                    statusHTML += '<span class="status-badge mns">Mancato</span>';
+                }
+                if (shift.hasFS) {
+                    statusHTML += '<span class="status-badge fs">Fuori Sede</span>';
+                }
+                
+                if (isRiposo) {
+                    statusHTML += `<span class="status-badge riposo">${riposoNames[shift.shiftCode]}</span>`;
+                    div.innerHTML = `
+                        <strong>${shift.date.toLocaleDateString('it-IT', { weekday: 'long', day: '2-digit', month: '2-digit' })}</strong><br>
+                        ${statusHTML}
+                    `;
+                } else {
+                    workShifts++;
+                    div.innerHTML = `
+                        <strong>${shift.date.toLocaleDateString('it-IT', { weekday: 'long', day: '2-digit', month: '2-digit' })}</strong><br>
+                        Turno: ${shift.shiftCode} (${times[0]} - ${times[1]})<br>
+                        Luogo: ${locationName}
+                        ${statusHTML}
+                    `;
+                }
                 shiftsList.appendChild(div);
             });
 
             document.getElementById('shiftsPreview').classList.add('active');
+            
+            let statusMsg = `✓ Trovati ${workShifts} turni`;
+            if (restDays > 0) {
+                statusMsg += `, ${restDays} giorni di riposo`;
+            }
+            if (undefinedDays > 0) {
+                statusMsg += `, ${undefinedDays} non definiti`;
+            }
+            statusMsg += '!';
+            showStatus(statusMsg, 'success');
         }
 
         function generateICS(schedule, firstName, lastName) {
@@ -612,39 +807,76 @@
                 'X-WR-TIMEZONE:Europe/Rome'
             ];
 
+            const riposoNames = {
+                '90': 'Festivo', '91': 'Non lavorato su Festivo',
+                '92': 'Riposo sul Festivo', '93': 'CS',
+                '94': 'Riposo sul semilavorato', '95': 'Non lavorato',
+                '96': 'Riposo', '97': 'Part time', '99': 'Non lavorato su semilavorato'
+            };
+
             schedule.forEach(shift => {
-                const times = SHIFT_TIMES[shift.shiftCode];
-                if (!times || shift.shiftCode === 'XXX') return;
-
-                const [startHour, startMin] = times[0].split(':');
-                const [endHour, endMin] = times[1].split(':');
-
-                const startDate = new Date(shift.date);
-                startDate.setHours(parseInt(startHour), parseInt(startMin), 0);
-
-                let endDate = new Date(shift.date);
-                endDate.setHours(parseInt(endHour), parseInt(endMin), 0);
-
-                if (parseInt(endHour) < parseInt(startHour)) {
-                    endDate.setDate(endDate.getDate() + 1);
+                if (shift.shiftCode === 'XXX') {
+                    return;
                 }
+                
+                const times = SHIFT_TIMES[shift.shiftCode];
+                if (!times) return;
 
-                const locationName = getLocationName(shift.location);
-                const eventTitle = `${shift.shiftCode} - ${locationName}`;
+                const isRiposo = riposoNames[shift.shiftCode];
+                
+                if (isRiposo) {
+                    const startDate = new Date(shift.date);
+                    startDate.setHours(0, 0, 0, 0);
+                    const endDate = new Date(shift.date);
+                    endDate.setDate(endDate.getDate() + 1);
+                    endDate.setHours(0, 0, 0, 0);
 
-                icsContent.push('BEGIN:VEVENT');
-                icsContent.push(`DTSTART:${formatICSDate(startDate)}`);
-                icsContent.push(`DTEND:${formatICSDate(endDate)}`);
-                icsContent.push(`SUMMARY:${eventTitle}`);
-                icsContent.push(`LOCATION:${locationName}`);
-                icsContent.push(`DESCRIPTION:Turno ${shift.shiftCode}\\nOrario: ${times[0]} - ${times[1]}`);
-                icsContent.push(`UID:${Date.now()}-${Math.random()}@rai-shifts`);
-                icsContent.push(`DTSTAMP:${formatICSDate(new Date())}`);
-                icsContent.push('END:VEVENT');
+                    icsContent.push('BEGIN:VEVENT');
+                    icsContent.push(`DTSTART;VALUE=DATE:${formatICSDateOnly(startDate)}`);
+                    icsContent.push(`DTEND;VALUE=DATE:${formatICSDateOnly(endDate)}`);
+                    icsContent.push(`SUMMARY:${riposoNames[shift.shiftCode]}`);
+                    icsContent.push(`DESCRIPTION:Giorno di riposo`);
+                    icsContent.push(`UID:${Date.now()}-${Math.random()}@rai-shifts`);
+                    icsContent.push(`DTSTAMP:${formatICSDate(new Date())}`);
+                    icsContent.push('END:VEVENT');
+                } else {
+                    const [startHour, startMin] = times[0].split(':');
+                    const [endHour, endMin] = times[1].split(':');
+
+                    const startDate = new Date(shift.date);
+                    startDate.setHours(parseInt(startHour), parseInt(startMin), 0);
+
+                    let endDate = new Date(shift.date);
+                    endDate.setHours(parseInt(endHour), parseInt(endMin), 0);
+
+                    if (parseInt(endHour) < parseInt(startHour)) {
+                        endDate.setDate(endDate.getDate() + 1);
+                    }
+
+                    const locationName = getLocationName(shift.location);
+                    const eventTitle = `${shift.shiftCode} - ${locationName}`;
+
+                    icsContent.push('BEGIN:VEVENT');
+                    icsContent.push(`DTSTART:${formatICSDate(startDate)}`);
+                    icsContent.push(`DTEND:${formatICSDate(endDate)}`);
+                    icsContent.push(`SUMMARY:${eventTitle}`);
+                    icsContent.push(`LOCATION:${locationName}`);
+                    icsContent.push(`DESCRIPTION:Turno ${shift.shiftCode}\\nOrario: ${times[0]} - ${times[1]}`);
+                    icsContent.push(`UID:${Date.now()}-${Math.random()}@rai-shifts`);
+                    icsContent.push(`DTSTAMP:${formatICSDate(new Date())}`);
+                    icsContent.push('END:VEVENT');
+                }
             });
 
             icsContent.push('END:VCALENDAR');
             return icsContent.join('\r\n');
+        }
+
+        function formatICSDateOnly(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}${month}${day}`;
         }
 
         function formatICSDate(date) {
@@ -657,146 +889,18 @@
             return `${year}${month}${day}T${hours}${minutes}${seconds}`;
         }
 
-        function addToGoogleCalendar() {
-            log('');
-            log('📅 GOOGLE CALENDAR BUTTON CLICKED');
-            
-            if (!extractedSchedule) {
-                showStatus('❌ Nessun turno da aggiungere!', 'error');
-                return;
-            }
-
-            try {
-                log('📅 Generating ICS for Google Calendar...');
-                const icsContent = generateICS(extractedSchedule, currentFirstName, currentLastName);
-                
-                // Create a blob and convert to base64 for Google Calendar
-                const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-                
-                // Create a temporary download link and trigger it
-                const url = URL.createObjectURL(blob);
-                const fileName = `RAI_Turni_${currentFirstName}_${currentLastName}.ics`;
-                
-                // On mobile, we need to download the ICS and let the user open it
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = fileName;
-                link.style.display = 'none';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                
-                // Show instructions based on device
-                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                
-                if (isMobile) {
-                    showStatus(`✓ File scaricato! Aprilo e seleziona "Google Calendar" per importare tutti i ${extractedSchedule.length} turni.`, 'success');
-                    
-                    // Try to open Google Calendar app/website
-                    setTimeout(() => {
-                        // This will prompt to open in Google Calendar app on mobile
-                        window.location.href = 'https://calendar.google.com/calendar/r';
-                    }, 1000);
-                } else {
-                    showStatus(`✓ File scaricato! Vai su Google Calendar > Impostazioni > Importa ed esporta per caricare il file.`, 'success');
-                }
-                
-                URL.revokeObjectURL(url);
-                log('✅ ICS file ready for Google Calendar import');
-                
-            } catch (error) {
-                log('💥 ERROR: ' + error.message);
-                console.error(error);
-                showStatus('❌ Errore: ' + error.message, 'error');
-            }
-        }
-
-        function downloadICS(content, firstName, lastName) {
-            const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `RAI_Turni_${firstName}_${lastName}.ics`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        }
-
-        function generateGoogleCalendarURL(schedule, firstName, lastName) {
-            if (schedule.length === 0) return null;
-            
-            const urls = [];
-            
-            schedule.forEach(shift => {
-                const times = SHIFT_TIMES[shift.shiftCode];
-                if (!times || shift.shiftCode === 'XXX') return;
-
-                const [startHour, startMin] = times[0].split(':');
-                const [endHour, endMin] = times[1].split(':');
-
-                const startDate = new Date(shift.date);
-                startDate.setHours(parseInt(startHour), parseInt(startMin), 0);
-
-                let endDate = new Date(shift.date);
-                endDate.setHours(parseInt(endHour), parseInt(endMin), 0);
-
-                if (parseInt(endHour) < parseInt(startHour)) {
-                    endDate.setDate(endDate.getDate() + 1);
-                }
-
-                const locationName = getLocationName(shift.location);
-                const eventTitle = `${shift.shiftCode} - ${locationName}`;
-                
-                const formatGoogleDate = (date) => {
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                    const day = String(date.getDate()).padStart(2, '0');
-                    const hours = String(date.getHours()).padStart(2, '0');
-                    const minutes = String(date.getMinutes()).padStart(2, '0');
-                    const seconds = String(date.getSeconds()).padStart(2, '0');
-                    return `${year}${month}${day}T${hours}${minutes}${seconds}`;
-                };
-
-                const startStr = formatGoogleDate(startDate);
-                const endStr = formatGoogleDate(endDate);
-                
-                const params = new URLSearchParams({
-                    action: 'TEMPLATE',
-                    text: eventTitle,
-                    dates: `${startStr}/${endStr}`,
-                    details: `Turno ${shift.shiftCode}\nOrario: ${times[0]} - ${times[1]}`,
-                    location: locationName
-                });
-                
-                urls.push(`https://calendar.google.com/calendar/render?${params.toString()}`);
-            });
-            
-            return urls;
-        }
-
-        // Extract button click handler
         document.getElementById('extractBtn').onclick = async function() {
-            log('');
-            log('='.repeat(50));
-            log('🚀 EXTRACT BUTTON CLICKED');
-            
             const pdfFile = document.getElementById('pdfFile').files[0];
             const firstName = document.getElementById('firstName').value.trim();
             const lastName = document.getElementById('lastName').value.trim();
 
-            log(`📄 File: ${pdfFile ? pdfFile.name : 'NONE'}`);
-            log(`👤 Name: ${firstName} ${lastName}`);
-
             if (!pdfFile) {
                 showStatus('❌ Seleziona un file PDF!', 'error');
-                log('❌ No PDF file selected');
                 return;
             }
 
             if (!firstName || !lastName) {
                 showStatus('❌ Inserisci nome e cognome!', 'error');
-                log('❌ Name fields empty');
                 return;
             }
 
@@ -805,87 +909,68 @@
                 showStatus('', '');
                 document.getElementById('shiftsPreview').classList.remove('active');
 
-                log('📖 Extracting PDF text...');
                 const text = await extractTextFromPDF(pdfFile);
-                log(`✓ Extracted ${text.length} characters`);
-                
-                log('🔍 Searching for employee...');
                 const result = parseSchedule(text, firstName, lastName);
 
                 if (!result.found) {
                     showStatus(`❌ Dipendente "${firstName} ${lastName}" non trovato`, 'error');
-                    log('❌ Employee not found');
                     showLoading(false);
                     return;
                 }
 
                 if (result.schedule.length === 0) {
                     showStatus('❌ Nessun turno trovato', 'error');
-                    log('❌ No shifts found');
                     showLoading(false);
                     return;
                 }
 
-                log(`✅ SUCCESS! Found ${result.schedule.length} shifts`);
                 extractedSchedule = result.schedule;
                 currentFirstName = firstName;
                 currentLastName = lastName;
 
                 displayShifts(result.schedule);
-                showStatus(`✓ Trovati ${result.schedule.length} turni!`, 'success');
                 showLoading(false);
 
             } catch (error) {
-                log('💥 ERROR: ' + error.message);
                 console.error(error);
                 showStatus('❌ Errore: ' + error.message, 'error');
                 showLoading(false);
             }
         };
 
-        // Download button click handler
         document.getElementById('downloadBtn').onclick = function() {
-            log('');
-            log('💾 DOWNLOAD BUTTON CLICKED');
-            
             if (!extractedSchedule) {
                 showStatus('❌ Nessun turno da scaricare!', 'error');
                 return;
             }
 
             try {
-                log('📅 Generating ICS...');
                 const icsContent = generateICS(extractedSchedule, currentFirstName, currentLastName);
-                log(`✓ ICS generated (${icsContent.length} bytes)`);
+                const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const fileName = `RAI_Turni_${currentFirstName}_${currentLastName}.ics`;
                 
-                log('⬇️ Downloading...');
-                downloadICS(icsContent, currentFirstName, currentLastName);
-                log('✅ Download complete!');
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
                 showStatus('✓ File scaricato con successo!', 'success');
             } catch (error) {
-                log('💥 ERROR: ' + error.message);
                 console.error(error);
                 showStatus('❌ Errore nel download: ' + error.message, 'error');
             }
         };
 
-        log('✓ Page loaded successfully');
-        log('✓ Ready to process PDF files');
-
-        // Load saved names from localStorage
         const savedFirstName = localStorage.getItem('raiFirstName');
         const savedLastName = localStorage.getItem('raiLastName');
         
-        if (savedFirstName) {
-            document.getElementById('firstName').value = savedFirstName;
-            log(`✓ Loaded saved first name: ${savedFirstName}`);
-        }
-        if (savedLastName) {
-            document.getElementById('lastName').value = savedLastName;
-            log(`✓ Loaded saved last name: ${savedLastName}`);
-        }
+        if (savedFirstName) document.getElementById('firstName').value = savedFirstName;
+        if (savedLastName) document.getElementById('lastName').value = savedLastName;
 
-        // Save names when they change
         document.getElementById('firstName').addEventListener('change', function(e) {
             localStorage.setItem('raiFirstName', e.target.value.trim());
         });
