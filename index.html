@@ -383,7 +383,8 @@
             'UD': ['10:25', '18:00'], 'US': ['11:30', '19:05'], 'VI': ['11:30', '20:05'],
             '90': ['00:00', '00:00'], '91': ['00:00', '00:00'], '92': ['00:00', '00:00'],
             '93': ['00:00', '00:00'], '94': ['00:00', '00:00'], '95': ['00:00', '00:00'],
-            '96': ['00:00', '00:00'], '97': ['00:00', '00:00'], '99': ['00:00', '00:00']
+            '96': ['00:00', '00:00'], '97': ['00:00', '00:00'], '99': ['00:00', '00:00'],
+            'RCF': ['00:00', '00:00']
         };
 
         const LOCATIONS = {
@@ -575,12 +576,16 @@
             const dataPart = dataPartMatch[1];
             log(`Data part: ${dataPart}`);
             
+            // Remove all > symbols from dataPart as they don't provide useful information
+            const cleanedDataPart = dataPart.replace(/>/g, ' ');
+            log(`Cleaned data part: ${cleanedDataPart}`);
+            
             const shiftsFound = [];
             let match;
             
             const quotedPattern = /'([A-Z*+0-9\s]{1,4})'/g;
             
-            while ((match = quotedPattern.exec(dataPart)) !== null) {
+            while ((match = quotedPattern.exec(cleanedDataPart)) !== null) {
                 const shiftCode = match[1].trim();
                 if (SHIFT_TIMES[shiftCode]) {
                     shiftsFound.push({
@@ -592,39 +597,33 @@
                 }
             }
             
-            const riposoCodes = ['90', '91', '92', '93', '94', '95', '96', '97', '99'];
-            for (const code of riposoCodes) {
-                const riposoPattern = new RegExp(`\\b${code}\\b`, 'g');
-                while ((match = riposoPattern.exec(dataPart)) !== null) {
-                    shiftsFound.push({
-                        code: code,
-                        position: match.index,
-                        endPosition: match.index + code.length
-                    });
-                    log(`  Found riposo code: ${code}`);
-                }
-            }
-            
+            // If no quoted shifts found, look for unquoted shift codes and rest codes
             if (shiftsFound.length === 0) {
-                const segments = dataPart.split(/\s{2,}/);
-                let position = 0;
+                // Parse the data as tokens (shift and location pairs)
+                const tokens = cleanedDataPart.trim().split(/\s+/);
+                log(`Tokens: ${tokens.join(', ')}`);
                 
-                for (const segment of segments) {
-                    const trimmed = segment.trim();
-                    if (trimmed.length >= 1 && trimmed.length <= 4 && SHIFT_TIMES[trimmed]) {
+                let currentPosition = 0;
+                for (let i = 0; i < tokens.length; i++) {
+                    const token = tokens[i];
+                    
+                    // Check if it's a shift code (not MFS, MNS, FS, or other markers)
+                    if (SHIFT_TIMES[token] && !['MFS', 'MNS', 'FS', 'SE', 'RT', 'L7G', 'RV', 'XXP', 'MN'].includes(token)) {
                         shiftsFound.push({
-                            code: trimmed,
-                            position: position,
-                            endPosition: position + segment.length
+                            code: token,
+                            position: currentPosition,
+                            endPosition: currentPosition + token.length,
+                            tokenIndex: i
                         });
-                        log(`  Found unquoted shift code: ${trimmed}`);
+                        log(`  Found shift code: ${token} at token index ${i}`);
                     }
-                    position += segment.length + 2;
+                    
+                    currentPosition += token.length + 1; // +1 for space
                 }
             }
             
             const xxxPattern = /\bXXX\b/g;
-            while ((match = xxxPattern.exec(dataPart)) !== null) {
+            while ((match = xxxPattern.exec(cleanedDataPart)) !== null) {
                 const isOverlapping = shiftsFound.some(s => 
                     match.index >= s.position && match.index < s.endPosition
                 );
@@ -651,29 +650,21 @@
                 log(`⚠️ Warning: Expected 7 days but found ${shiftsFound.length}`);
             }
             
+            // Get tokens for location parsing
+            const tokens = cleanedDataPart.trim().split(/\s+/);
+            
             shiftsFound.forEach((shift, dayIndex) => {
                 if (dayIndex >= 7) {
                     log(`⚠️ Skipping extra shift at day ${dayIndex + 1}`);
                     return;
                 }
                 
-                let afterShift;
-                if (dayIndex < shiftsFound.length - 1) {
-                    afterShift = dataPart.substring(shift.endPosition, shiftsFound[dayIndex + 1].position);
-                } else {
-                    afterShift = dataPart.substring(shift.endPosition);
-                }
-                
-                log(`  After shift '${shift.code}': "${afterShift.trim()}"`);
-                
-                const tokens = afterShift.trim().split(/\s+/).filter(t => t.length > 0);
-                
+                // For unquoted shifts, the location is the next token(s) after the shift
                 let location = 'SE';
                 let hasMFS = false;
                 let hasMNS = false;
                 let hasFS = false;
                 let locationTokens = [];
-                let foundLocation = false;
                 
                 if (shift.code === 'XXX') {
                     log(`  Day ${dayIndex + 1}: XXX (undefined shift)`);
@@ -688,48 +679,86 @@
                     return;
                 }
                 
-                for (let i = 0; i < tokens.length; i++) {
-                    const token = tokens[i];
-                    const cleaned = token.replace(/[>,<]/g, '');
-                    
-                    if (cleaned === 'MFS') {
-                        hasMFS = true;
-                        continue;
-                    }
-                    if (cleaned === 'MNS') {
-                        hasMNS = true;
-                        continue;
-                    }
-                    if (cleaned === 'FS') {
-                        hasFS = true;
-                        continue;
-                    }
-                    
-                    if (['SE', 'RCF', 'XXX', 'RT', 'L7G', 'RV', 'XXP', 'MN'].includes(cleaned)) {
-                        continue;
-                    }
-                    
-                    if (['90', '91', '92', '93', '94', '95', '96', '97', '99'].includes(cleaned)) {
-                        if (foundLocation) break;
-                        continue;
-                    }
-                    
-                    if (token.match(/^OB\d$/) && i + 1 < tokens.length && tokens[i + 1].match(/^\d$/)) {
-                        locationTokens.push(token + tokens[i + 1]);
-                        i++;
-                        foundLocation = true;
-                        continue;
-                    }
-                    
-                    if (token.includes('>')) {
+                // If we have tokenIndex, use it to find the location
+                if (shift.tokenIndex !== undefined) {
+                    // Look at tokens after this shift until we hit the next shift or special marker
+                    for (let i = shift.tokenIndex + 1; i < tokens.length; i++) {
+                        const token = tokens[i];
+                        
+                        // Stop if we hit another shift code
+                        if (SHIFT_TIMES[token]) {
+                            break;
+                        }
+                        
+                        // Check for special markers
+                        if (token === 'MFS') {
+                            hasMFS = true;
+                            continue;
+                        }
+                        if (token === 'MNS') {
+                            hasMNS = true;
+                            continue;
+                        }
+                        if (token === 'FS') {
+                            hasFS = true;
+                            continue;
+                        }
+                        
+                        // Skip other markers
+                        if (['SE', 'RCF', 'XXX', 'RT', 'L7G', 'RV', 'XXP', 'MN'].includes(token)) {
+                            continue;
+                        }
+                        
+                        // This is a location token
                         locationTokens.push(token);
-                        foundLocation = true;
-                        continue;
+                        break; // Usually location is just one token (or we already have it)
+                    }
+                } else {
+                    // For quoted shifts, parse the text after the shift
+                    let afterShift;
+                    if (dayIndex < shiftsFound.length - 1) {
+                        afterShift = cleanedDataPart.substring(shift.endPosition, shiftsFound[dayIndex + 1].position);
+                    } else {
+                        afterShift = cleanedDataPart.substring(shift.endPosition);
                     }
                     
-                    if (!foundLocation) {
+                    log(`  After shift '${shift.code}': "${afterShift.trim()}"`);
+                    
+                    const afterTokens = afterShift.trim().split(/\s+/).filter(t => t.length > 0);
+                    
+                    for (let i = 0; i < afterTokens.length; i++) {
+                        const token = afterTokens[i];
+                        const cleaned = token.replace(/[,<]/g, '');
+                        
+                        if (cleaned === 'MFS') {
+                            hasMFS = true;
+                            continue;
+                        }
+                        if (cleaned === 'MNS') {
+                            hasMNS = true;
+                            continue;
+                        }
+                        if (cleaned === 'FS') {
+                            hasFS = true;
+                            continue;
+                        }
+                        
+                        if (['SE', 'RCF', 'XXX', 'RT', 'L7G', 'RV', 'XXP', 'MN'].includes(cleaned)) {
+                            continue;
+                        }
+                        
+                        if (['90', '91', '92', '93', '94', '95', '96', '97', '99', 'RCF'].includes(cleaned)) {
+                            break;
+                        }
+                        
+                        if (token.match(/^OB\d$/) && i + 1 < afterTokens.length && afterTokens[i + 1].match(/^\d$/)) {
+                            locationTokens.push(token + afterTokens[i + 1]);
+                            i++;
+                            break;
+                        }
+                        
                         locationTokens.push(cleaned);
-                        foundLocation = true;
+                        break;
                     }
                 }
                 
@@ -757,17 +786,8 @@
         }
 
         function getLocationName(locationCode) {
-            if (locationCode.includes('>')) {
-                const locations = locationCode.split('>').filter(loc => loc.length > 0);
-                const names = locations.map(loc => {
-                    const trimmed = loc.trim();
-                    if (trimmed.startsWith('OB')) {
-                        return 'Outside Broadcast';
-                    }
-                    return LOCATIONS[trimmed] || trimmed;
-                });
-                return names.join(' → ');
-            }
+            // Remove any remaining > symbols
+            locationCode = locationCode.replace(/>/g, '');
             
             const trimmed = locationCode.trim();
             
@@ -791,7 +811,8 @@
                 '95': 'Non lavorato',
                 '96': 'Riposo',
                 '97': 'Part time',
-                '99': 'Non lavorato su semilavorato'
+                '99': 'Non lavorato su semilavorato',
+                'RCF': 'Riposo su Festivo'
             };
 
             let workShifts = 0;
@@ -880,7 +901,8 @@
                 '90': 'Festivo', '91': 'Non lavorato su Festivo',
                 '92': 'Riposo sul Festivo', '93': 'CS',
                 '94': 'Riposo sul semilavorato', '95': 'Non lavorato',
-                '96': 'Riposo', '97': 'Part time', '99': 'Non lavorato su semilavorato'
+                '96': 'Riposo', '97': 'Part time', '99': 'Non lavorato su semilavorato',
+                'RCF': 'Riposo su Festivo'
             };
 
             schedule.forEach(shift => {
