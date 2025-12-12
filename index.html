@@ -277,7 +277,7 @@
         <div id="uploadSection">
             <div class="form-group">
                 <label for="pdfFile">Carica il PDF dell'orario:</label>
-                <input type="file" id="pdfFile" accept=".pdf" required>
+                <input type="file" id="pdfFile" accept="application/pdf,.pdf" required>
             </div>
 
             <div class="form-group">
@@ -316,11 +316,51 @@
     </div>
 
     <script>
+        // Enhanced logging for Chrome DevTools
+        console.log('=== RAI SHIFT CALENDAR APP STARTED ===');
+        console.log('Timestamp:', new Date().toISOString());
+        console.log('User Agent:', navigator.userAgent);
+        console.log('Platform:', navigator.platform);
+        console.log('Screen:', window.screen.width + 'x' + window.screen.height);
+        console.log('Viewport:', window.innerWidth + 'x' + window.innerHeight);
+        
+        // Check if PDF.js is loaded
+        if (typeof pdfjsLib === 'undefined') {
+            console.error('✗✗✗ PDF.js library NOT LOADED ✗✗✗');
+        } else {
+            console.log('✓ PDF.js library loaded, version:', pdfjsLib.version);
+        }
+        
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        console.log('✓ PDF.js worker configured');
 
         let extractedSchedule = null;
         let currentFirstName = '';
         let currentLastName = '';
+        
+        // Test localStorage availability
+        try {
+            localStorage.setItem('test', 'test');
+            localStorage.removeItem('test');
+            console.log('✓ LocalStorage is available');
+        } catch (e) {
+            console.error('✗ LocalStorage is NOT available:', e);
+        }
+        
+        // Global error handlers
+        window.addEventListener('error', function(e) {
+            console.error('✗✗✗ UNCAUGHT ERROR ✗✗✗');
+            console.error('Message:', e.message);
+            console.error('File:', e.filename);
+            console.error('Line:', e.lineno, 'Col:', e.colno);
+            console.error('Error object:', e.error);
+        });
+        
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('✗✗✗ UNHANDLED PROMISE REJECTION ✗✗✗');
+            console.error('Reason:', e.reason);
+            console.error('Promise:', e.promise);
+        });
 
         const SHIFT_TIMES = {
             '4o': ['05:55', '13:30'], '5o': ['05:55', '14:30'], '01': ['05:45', '14:20'],
@@ -374,8 +414,13 @@
             'SW': 'Smart Working'
         };
 
-        function log(message) {
-            console.log(message);
+        function log(message, data = null) {
+            const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+            if (data !== null) {
+                console.log(`[${timestamp}] ${message}`, data);
+            } else {
+                console.log(`[${timestamp}] ${message}`);
+            }
         }
 
         function showStatus(message, type) {
@@ -389,41 +434,65 @@
         }
 
         async function extractTextFromPDF(file) {
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            let fullText = '';
+            log('📄 Starting PDF extraction...', {
+                fileName: file.name,
+                fileSize: file.size,
+                fileType: file.type
+            });
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                log('✓ File converted to ArrayBuffer', { bufferSize: arrayBuffer.byteLength });
+                
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                log('✓ PDF document loaded', { numPages: pdf.numPages });
+                
+                let fullText = '';
 
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                
-                const items = textContent.items.sort((a, b) => {
-                    const yDiff = Math.abs(a.transform[5] - b.transform[5]);
-                    if (yDiff > 5) {
-                        return b.transform[5] - a.transform[5];
-                    }
-                    return a.transform[4] - b.transform[4];
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    log(`Processing page ${i}/${pdf.numPages}...`);
+                    
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    
+                    log(`Page ${i} has ${textContent.items.length} text items`);
+                    
+                    const items = textContent.items.sort((a, b) => {
+                        const yDiff = Math.abs(a.transform[5] - b.transform[5]);
+                        if (yDiff > 5) {
+                            return b.transform[5] - a.transform[5];
+                        }
+                        return a.transform[4] - b.transform[4];
+                    });
+                    
+                    let lastY = null;
+                    let lineText = '';
+                    
+                    items.forEach(item => {
+                        const y = item.transform[5];
+                        
+                        if (lastY !== null && Math.abs(y - lastY) > 5) {
+                            fullText += lineText + '\n';
+                            lineText = '';
+                        }
+                        
+                        lineText += item.str + ' ';
+                        lastY = y;
+                    });
+                    
+                    fullText += lineText + '\n';
+                }
+
+                log('✓ PDF text extraction complete', { 
+                    totalLength: fullText.length,
+                    preview: fullText.substring(0, 200) + '...'
                 });
                 
-                let lastY = null;
-                let lineText = '';
-                
-                items.forEach(item => {
-                    const y = item.transform[5];
-                    
-                    if (lastY !== null && Math.abs(y - lastY) > 5) {
-                        fullText += lineText + '\n';
-                        lineText = '';
-                    }
-                    
-                    lineText += item.str + ' ';
-                    lastY = y;
-                });
-                
-                fullText += lineText + '\n';
+                return fullText;
+            } catch (error) {
+                console.error('✗ PDF extraction failed:', error);
+                throw error;
             }
-
-            return fullText;
         }
 
         function findEmployeeLine(text, firstName, lastName) {
@@ -816,7 +885,7 @@
 
             schedule.forEach(shift => {
                 if (shift.shiftCode === 'XXX') {
-                    return;
+                    return; // Skip undefined shifts
                 }
                 
                 const times = SHIFT_TIMES[shift.shiftCode];
@@ -824,59 +893,42 @@
 
                 const isRiposo = riposoNames[shift.shiftCode];
                 
+                // Skip rest days (riposo) - only add work shifts to ICS
                 if (isRiposo) {
-                    const startDate = new Date(shift.date);
-                    startDate.setHours(0, 0, 0, 0);
-                    const endDate = new Date(shift.date);
-                    endDate.setDate(endDate.getDate() + 1);
-                    endDate.setHours(0, 0, 0, 0);
-
-                    icsContent.push('BEGIN:VEVENT');
-                    icsContent.push(`DTSTART;VALUE=DATE:${formatICSDateOnly(startDate)}`);
-                    icsContent.push(`DTEND;VALUE=DATE:${formatICSDateOnly(endDate)}`);
-                    icsContent.push(`SUMMARY:${riposoNames[shift.shiftCode]}`);
-                    icsContent.push(`DESCRIPTION:Giorno di riposo`);
-                    icsContent.push(`UID:${Date.now()}-${Math.random()}@rai-shifts`);
-                    icsContent.push(`DTSTAMP:${formatICSDate(new Date())}`);
-                    icsContent.push('END:VEVENT');
-                } else {
-                    const [startHour, startMin] = times[0].split(':');
-                    const [endHour, endMin] = times[1].split(':');
-
-                    const startDate = new Date(shift.date);
-                    startDate.setHours(parseInt(startHour), parseInt(startMin), 0);
-
-                    let endDate = new Date(shift.date);
-                    endDate.setHours(parseInt(endHour), parseInt(endMin), 0);
-
-                    if (parseInt(endHour) < parseInt(startHour)) {
-                        endDate.setDate(endDate.getDate() + 1);
-                    }
-
-                    const locationName = getLocationName(shift.location);
-                    const eventTitle = `${shift.shiftCode} - ${locationName}`;
-
-                    icsContent.push('BEGIN:VEVENT');
-                    icsContent.push(`DTSTART:${formatICSDate(startDate)}`);
-                    icsContent.push(`DTEND:${formatICSDate(endDate)}`);
-                    icsContent.push(`SUMMARY:${eventTitle}`);
-                    icsContent.push(`LOCATION:${locationName}`);
-                    icsContent.push(`DESCRIPTION:Turno ${shift.shiftCode}\\nOrario: ${times[0]} - ${times[1]}`);
-                    icsContent.push(`UID:${Date.now()}-${Math.random()}@rai-shifts`);
-                    icsContent.push(`DTSTAMP:${formatICSDate(new Date())}`);
-                    icsContent.push('END:VEVENT');
+                    console.log(`Skipping rest day from ICS: ${shift.shiftCode} on ${shift.date.toLocaleDateString('it-IT')}`);
+                    return;
                 }
+                
+                // Add work shift to calendar
+                const [startHour, startMin] = times[0].split(':');
+                const [endHour, endMin] = times[1].split(':');
+
+                const startDate = new Date(shift.date);
+                startDate.setHours(parseInt(startHour), parseInt(startMin), 0);
+
+                let endDate = new Date(shift.date);
+                endDate.setHours(parseInt(endHour), parseInt(endMin), 0);
+
+                if (parseInt(endHour) < parseInt(startHour)) {
+                    endDate.setDate(endDate.getDate() + 1);
+                }
+
+                const locationName = getLocationName(shift.location);
+                const eventTitle = `${shift.shiftCode} - ${locationName}`;
+
+                icsContent.push('BEGIN:VEVENT');
+                icsContent.push(`DTSTART:${formatICSDate(startDate)}`);
+                icsContent.push(`DTEND:${formatICSDate(endDate)}`);
+                icsContent.push(`SUMMARY:${eventTitle}`);
+                icsContent.push(`LOCATION:${locationName}`);
+                icsContent.push(`DESCRIPTION:Turno ${shift.shiftCode}\\nOrario: ${times[0]} - ${times[1]}`);
+                icsContent.push(`UID:${Date.now()}-${Math.random()}@rai-shifts`);
+                icsContent.push(`DTSTAMP:${formatICSDate(new Date())}`);
+                icsContent.push('END:VEVENT');
             });
 
             icsContent.push('END:VCALENDAR');
             return icsContent.join('\r\n');
-        }
-
-        function formatICSDateOnly(date) {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${year}${month}${day}`;
         }
 
         function formatICSDate(date) {
@@ -888,96 +940,275 @@
             const seconds = String(date.getSeconds()).padStart(2, '0');
             return `${year}${month}${day}T${hours}${minutes}${seconds}`;
         }
+        
+        // Function to load PDF from external source (when app is opened with a PDF)
+        window.loadExternalPDF = function(base64Data, fileName) {
+            console.log('=== EXTERNAL PDF LOADED ===');
+            console.log('File name:', fileName);
+            console.log('Base64 length:', base64Data.length);
+            
+            try {
+                // Convert base64 to blob
+                const binaryString = atob(base64Data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                const blob = new Blob([bytes], { type: 'application/pdf' });
+                const file = new File([blob], fileName, { type: 'application/pdf' });
+                
+                // Create a DataTransfer to simulate file selection
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                
+                const fileInput = document.getElementById('pdfFile');
+                fileInput.files = dataTransfer.files;
+                
+                // Trigger change event
+                const event = new Event('change', { bubbles: true });
+                fileInput.dispatchEvent(event);
+                
+                console.log('✓ External PDF loaded into file input');
+                showStatus('📄 PDF caricato! Inserisci nome e cognome.', 'info');
+            } catch (error) {
+                console.error('✗ Error loading external PDF:', error);
+                showStatus('❌ Errore nel caricamento del PDF', 'error');
+            }
+        };
 
         document.getElementById('extractBtn').onclick = async function() {
+            console.log('=== EXTRACT BUTTON CLICKED ===');
+            
             const pdfFile = document.getElementById('pdfFile').files[0];
             const firstName = document.getElementById('firstName').value.trim();
             const lastName = document.getElementById('lastName').value.trim();
 
+            log('Input validation...', {
+                hasFile: !!pdfFile,
+                firstName: firstName,
+                lastName: lastName
+            });
+
             if (!pdfFile) {
+                console.error('✗ No PDF file selected');
                 showStatus('❌ Seleziona un file PDF!', 'error');
                 return;
             }
 
             if (!firstName || !lastName) {
+                console.error('✗ Missing name fields');
                 showStatus('❌ Inserisci nome e cognome!', 'error');
                 return;
             }
 
             try {
+                log('✓ Starting extraction process...');
                 showLoading(true);
                 showStatus('', '');
                 document.getElementById('shiftsPreview').classList.remove('active');
 
                 const text = await extractTextFromPDF(pdfFile);
+                log('Text extraction complete, starting schedule parsing...');
+                
                 const result = parseSchedule(text, firstName, lastName);
+                log('Schedule parsing complete', { 
+                    found: result.found, 
+                    scheduleLength: result.schedule.length 
+                });
 
                 if (!result.found) {
+                    console.error(`✗ Employee "${firstName} ${lastName}" not found`);
                     showStatus(`❌ Dipendente "${firstName} ${lastName}" non trovato`, 'error');
                     showLoading(false);
                     return;
                 }
 
                 if (result.schedule.length === 0) {
+                    console.error('✗ No shifts found in schedule');
                     showStatus('❌ Nessun turno trovato', 'error');
                     showLoading(false);
                     return;
                 }
 
+                log('✓ Extraction successful!', { shifts: result.schedule.length });
                 extractedSchedule = result.schedule;
                 currentFirstName = firstName;
                 currentLastName = lastName;
 
                 displayShifts(result.schedule);
                 showLoading(false);
+                console.log('=== EXTRACTION COMPLETE ===');
 
             } catch (error) {
-                console.error(error);
+                console.error('✗✗✗ FATAL ERROR ✗✗✗');
+                console.error('Error type:', error.name);
+                console.error('Error message:', error.message);
+                console.error('Error stack:', error.stack);
                 showStatus('❌ Errore: ' + error.message, 'error');
                 showLoading(false);
             }
         };
 
         document.getElementById('downloadBtn').onclick = function() {
+            console.log('=== DOWNLOAD BUTTON CLICKED ===');
+            
             if (!extractedSchedule) {
+                console.error('✗ No schedule to download');
                 showStatus('❌ Nessun turno da scaricare!', 'error');
                 return;
             }
 
             try {
+                log('Generating ICS file...', {
+                    firstName: currentFirstName,
+                    lastName: currentLastName,
+                    shifts: extractedSchedule.length
+                });
+                
                 const icsContent = generateICS(extractedSchedule, currentFirstName, currentLastName);
-                const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-                const url = URL.createObjectURL(blob);
+                log('✓ ICS content generated', { length: icsContent.length });
+                
                 const fileName = `RAI_Turni_${currentFirstName}_${currentLastName}.ics`;
                 
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = fileName;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-                
-                showStatus('✓ File scaricato con successo!', 'success');
+                // Check if running in Android WebView with download interface
+                if (typeof AndroidDownload !== 'undefined' && AndroidDownload.downloadBase64) {
+                    log('✓ Android interface detected - using direct download');
+                    
+                    // Convert to base64 for Android
+                    const base64 = btoa(unescape(encodeURIComponent(icsContent)));
+                    log('✓ Content converted to base64', { length: base64.length });
+                    
+                    AndroidDownload.downloadBase64(base64, fileName, 'text/calendar');
+                    log('✓ Download passed to Android');
+                    
+                    showStatus('✓ File scaricato con successo!', 'success');
+                    console.log('=== DOWNLOAD COMPLETE (Android) ===');
+                } else {
+                    // Fallback for regular browsers
+                    log('ℹ Using browser download (blob URL)');
+                    
+                    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+                    log('✓ Blob created', { size: blob.size, type: blob.type });
+                    
+                    const url = URL.createObjectURL(blob);
+                    log('✓ Object URL created', { fileName: fileName });
+                    
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    log('✓ Download link created and added to DOM');
+                    
+                    link.click();
+                    log('✓ Download triggered');
+                    
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                    log('✓ Cleanup complete');
+                    
+                    showStatus('✓ File scaricato con successo!', 'success');
+                    console.log('=== DOWNLOAD COMPLETE (Browser) ===');
+                }
             } catch (error) {
-                console.error(error);
+                console.error('✗✗✗ DOWNLOAD ERROR ✗✗✗');
+                console.error('Error:', error);
                 showStatus('❌ Errore nel download: ' + error.message, 'error');
             }
         };
 
-        const savedFirstName = localStorage.getItem('raiFirstName');
-        const savedLastName = localStorage.getItem('raiLastName');
+        // LocalStorage with error handling for WebView
+        console.log('=== INITIALIZING APP ===');
+        try {
+            const savedFirstName = localStorage.getItem('raiFirstName');
+            const savedLastName = localStorage.getItem('raiLastName');
+            
+            if (savedFirstName) {
+                document.getElementById('firstName').value = savedFirstName;
+                log('✓ Restored firstName from localStorage', { value: savedFirstName });
+            }
+            if (savedLastName) {
+                document.getElementById('lastName').value = savedLastName;
+                log('✓ Restored lastName from localStorage', { value: savedLastName });
+            }
+
+            document.getElementById('firstName').addEventListener('change', function(e) {
+                try {
+                    localStorage.setItem('raiFirstName', e.target.value.trim());
+                    log('✓ Saved firstName to localStorage');
+                } catch (err) {
+                    console.warn('⚠ LocalStorage save failed:', err);
+                }
+            });
+
+            document.getElementById('lastName').addEventListener('change', function(e) {
+                try {
+                    localStorage.setItem('raiLastName', e.target.value.trim());
+                    log('✓ Saved lastName to localStorage');
+                } catch (err) {
+                    console.warn('⚠ LocalStorage save failed:', err);
+                }
+            });
+        } catch (err) {
+            console.warn('⚠ LocalStorage not available in WebView:', err);
+        }
         
-        if (savedFirstName) document.getElementById('firstName').value = savedFirstName;
-        if (savedLastName) document.getElementById('lastName').value = savedLastName;
-
-        document.getElementById('firstName').addEventListener('change', function(e) {
-            localStorage.setItem('raiFirstName', e.target.value.trim());
+        // Android interface check
+        console.log('=== CHECKING ANDROID WEBVIEW ===');
+        if (typeof Android !== 'undefined') {
+            console.log('✓ Running in Android WebView - Android interface detected');
+            console.log('Android object:', Android);
+        } else {
+            console.log('⚠ Android interface NOT found');
+        }
+        
+        // Check for AndroidDownload interface
+        if (typeof AndroidDownload !== 'undefined') {
+            console.log('✓ AndroidDownload interface detected');
+            console.log('AndroidDownload object:', AndroidDownload);
+            console.log('Has downloadBase64 method:', typeof AndroidDownload.downloadBase64 === 'function');
+        } else {
+            console.log('⚠ AndroidDownload interface NOT found - will use browser download');
+        }
+        
+        // Check for WebView user agent
+        const isWebView = navigator.userAgent.includes('wv');
+        console.log('WebView detected in user agent:', isWebView);
+        
+        // Check if file input is accessible
+        const fileInput = document.getElementById('pdfFile');
+        console.log('File input element:', fileInput);
+        console.log('File input type:', fileInput.type);
+        console.log('File input accept:', fileInput.accept);
+        
+        // File input click listener
+        document.getElementById('pdfFile').addEventListener('click', function(e) {
+            console.log('🖱️ File input CLICKED');
+            console.log('Click event:', e);
         });
-
-        document.getElementById('lastName').addEventListener('change', function(e) {
-            localStorage.setItem('raiLastName', e.target.value.trim());
+        
+        // File input focus listener
+        document.getElementById('pdfFile').addEventListener('focus', function(e) {
+            console.log('🎯 File input FOCUSED');
         });
+        
+        // File input change listener
+        document.getElementById('pdfFile').addEventListener('change', function(e) {
+            console.log('📝 File input CHANGE event fired');
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                log('📎 File selected', {
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    lastModified: new Date(file.lastModified).toISOString()
+                });
+            } else {
+                log('⚠ File selection cleared or cancelled');
+            }
+        });
+        
+        console.log('✓ All event listeners attached');
+        console.log('=== APP READY ===');
     </script>
 </body>
 </html>
