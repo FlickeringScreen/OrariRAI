@@ -542,7 +542,10 @@
         function extractWeekDates(text) {
             const lines = text.split('\n');
             
+            // Look for pattern: DD/MM/YYYY DD/MM/YYYY (with or without spaces around it)
+            // This appears near "PERIODO DI RIFERIMENTO"
             for (const line of lines) {
+                // Try to find two dates in DD/MM/YYYY format
                 const match = line.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2})\/(\d{2})\/(\d{4})/);
                 if (match) {
                     const startDay = parseInt(match[1]);
@@ -554,7 +557,31 @@
                 }
             }
             
-            return generateWeekDates(8, 12, 2025);
+            // Alternative: Look for dates near "PERIODO DI RIFERIMENTO"
+            const periodoIndex = text.indexOf('PERIODO DI RIFERIMENTO');
+            if (periodoIndex !== -1) {
+                // Extract text around this marker (500 chars before and after)
+                const chunk = text.substring(Math.max(0, periodoIndex - 500), periodoIndex + 200);
+                const match = chunk.match(/(\d{2})\/(\d{2})\/(\d{4})\s*-?\s*(\d{2})\/(\d{2})\/(\d{4})/);
+                if (match) {
+                    const startDay = parseInt(match[1]);
+                    const startMonth = parseInt(match[2]);
+                    const year = parseInt(match[3]);
+                    
+                    log(`✓ Found week dates near PERIODO: ${match[0]}`);
+                    return generateWeekDates(startDay, startMonth, year);
+                }
+            }
+            
+            log('❌ WARNING: Could not find week dates in PDF! Using current date.');
+            // Use current date as fallback
+            const today = new Date();
+            const monday = new Date(today);
+            const day = monday.getDay();
+            const diff = monday.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
+            monday.setDate(diff);
+            
+            return generateWeekDates(monday.getDate(), monday.getMonth() + 1, monday.getFullYear());
         }
 
         function generateWeekDates(day, month, year) {
