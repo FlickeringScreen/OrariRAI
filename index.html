@@ -627,6 +627,7 @@
             const shiftsFound = [];
             let match;
             
+            // 1. Find quoted shifts (e.g., 'G ', '2Q')
             const quotedPattern = /'([A-Z*+0-9\s]{1,4})'/g;
             
             while ((match = quotedPattern.exec(dataPart)) !== null) {
@@ -641,56 +642,51 @@
                 }
             }
             
-            // Check for riposo codes (90-99) AND RCF
-            const riposoCodes = ['90', '91', '92', '93', '94', '95', '96', '97', '99', 'RCF'];
-            for (const code of riposoCodes) {
-                const riposoPattern = new RegExp(`\\b${code}\\b`, 'g');
-                while ((match = riposoPattern.exec(dataPart)) !== null) {
-                    // Check if this position is already covered by a quoted shift
-                    const isOverlapping = shiftsFound.some(s => 
-                        match.index >= s.position && match.index < s.endPosition
-                    );
-                    if (!isOverlapping) {
-                        shiftsFound.push({
-                            code: code,
-                            position: match.index,
-                            endPosition: match.index + code.length
-                        });
-                        log(`  Found riposo code: ${code}`);
-                    }
-                }
-            }
+            // 2. Find ALL unquoted work shifts (L, M, VI, F, etc.) AND riposo/XXX codes
+            // Tokenize by any whitespace
+            const tokens = dataPart.split(/\s+/).filter(t => t.length > 0);
+            let currentPos = 0;
             
-            if (shiftsFound.length === 0) {
-                const segments = dataPart.split(/\s{2,}/);
-                let position = 0;
+            for (let i = 0; i < tokens.length; i++) {
+                const token = tokens[i];
                 
-                for (const segment of segments) {
-                    const trimmed = segment.trim();
-                    if (trimmed.length >= 1 && trimmed.length <= 4 && SHIFT_TIMES[trimmed]) {
-                        shiftsFound.push({
-                            code: trimmed,
-                            position: position,
-                            endPosition: position + segment.length
-                        });
-                        log(`  Found unquoted shift code: ${trimmed}`);
-                    }
-                    position += segment.length + 2;
-                }
-            }
-            
-            const xxxPattern = /\bXXX\b/g;
-            while ((match = xxxPattern.exec(dataPart)) !== null) {
+                // Find this token's position in the original string
+                const tokenPos = dataPart.indexOf(token, currentPos);
+                currentPos = tokenPos + token.length;
+                
+                // Check if already covered by quoted shift
                 const isOverlapping = shiftsFound.some(s => 
-                    match.index >= s.position && match.index < s.endPosition
+                    tokenPos >= s.position && tokenPos < s.endPosition
                 );
+                
                 if (!isOverlapping) {
-                    shiftsFound.push({
-                        code: 'XXX',
-                        position: match.index,
-                        endPosition: match.index + 3
-                    });
-                    log(`  Found XXX placeholder at position ${match.index}`);
+                    // Check if it's a valid shift code
+                    if (SHIFT_TIMES[token]) {
+                        shiftsFound.push({
+                            code: token,
+                            position: tokenPos,
+                            endPosition: tokenPos + token.length
+                        });
+                        log(`  Found unquoted shift code: ${token} at position ${tokenPos}`);
+                    }
+                    // Check if it's a riposo code
+                    else if (['90', '91', '92', '93', '94', '95', '96', '97', '99', 'RCF'].includes(token)) {
+                        shiftsFound.push({
+                            code: token,
+                            position: tokenPos,
+                            endPosition: tokenPos + token.length
+                        });
+                        log(`  Found riposo code: ${token} at position ${tokenPos}`);
+                    }
+                    // Check if it's XXX
+                    else if (token === 'XXX') {
+                        shiftsFound.push({
+                            code: 'XXX',
+                            position: tokenPos,
+                            endPosition: tokenPos + 3
+                        });
+                        log(`  Found XXX placeholder at position ${tokenPos}`);
+                    }
                 }
             }
             
